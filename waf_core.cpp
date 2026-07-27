@@ -26,8 +26,6 @@ bool isMalicious(const string& request) {
 
 // Cihaz Parmak İzi Doğrulama
 bool hasValidFingerprint(const string& request) {
-    // Normalde burada asimetrik şifreleme ile Device ID çözülür.
-    // Şimdilik header içinde "X-Device-Fingerprint" arıyoruz.
     if (request.find("X-Device-Fingerprint:") != string::npos) {
         return true;
     }
@@ -39,27 +37,36 @@ void handleClient(int clientSocket) {
     read(clientSocket, buffer, 4096);
     string request(buffer);
 
-    string response;
+    string responseBody;
+    string statusCode;
 
     if (isMalicious(request)) {
         cout << "[WAF BLOCKED] Malicious payload detected!" << endl;
-        response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 46\r\n\r\n{\"error\": \"Blocked by IAL WAF - Malicious\"}\n";
+        statusCode = "403 Forbidden";
+        responseBody = "{\"error\": \"Blocked by IAL WAF - Malicious\"}\n";
     } 
     else if (request.find("/api/qr/verify") != string::npos) {
-        // QR Doğrulama Endpointi
         if (!hasValidFingerprint(request)) {
             cout << "[WAF BLOCKED] QR Share Attempt Detected (Invalid Fingerprint)!" << endl;
-            response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 64\r\n\r\n{\"error\": \"Bu baglanti baska bir cihazdan kopyalanmis!\"}\n";
+            statusCode = "403 Forbidden";
+            responseBody = "{\"error\": \"Bu baglanti baska bir cihazdan kopyalanmis!\"}\n";
         } else {
             cout << "[WAF APPROVED] QR Validated for Fingerprint." << endl;
-            response = "HTTP/1.1 200 OK\r\nContent-Length: 30\r\n\r\n{\"status\": \"QR_VERIFIED_OK\"}\n";
+            statusCode = "200 OK";
+            responseBody = "{\"status\": \"QR_VERIFIED_OK\"}\n";
         }
     } 
     else {
-        // Normal trafik
         cout << "[WAF APPROVED] Traffic Passed." << endl;
-        response = "HTTP/1.1 200 OK\r\nContent-Length: 26\r\n\r\n{\"status\": \"WAF_PASSED\"}\n";
+        statusCode = "200 OK";
+        responseBody = "{\"status\": \"WAF_PASSED\"}\n";
     }
+
+    string response = "HTTP/1.1 " + statusCode + "\r\n"
+                    + "Content-Type: application/json\r\n"
+                    + "Content-Length: " + to_string(responseBody.length()) + "\r\n"
+                    + "Connection: close\r\n\r\n"
+                    + responseBody;
 
     send(clientSocket, response.c_str(), response.length(), 0);
     close(clientSocket);
@@ -78,7 +85,7 @@ int main() {
     sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(getenv("PORT") ? atoi(getenv("PORT")) : 8080); // WAF 8080 portunda çalışır
+    address.sin_port = htons(getenv("PORT") ? atoi(getenv("PORT")) : 8080);
 
     if (::bind(serverSocket, (struct sockaddr*)&address, sizeof(address)) < 0) {
         cerr << "Bind failed!" << endl;
