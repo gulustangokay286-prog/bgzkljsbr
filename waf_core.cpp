@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstdlib>
 #include <string>
 #include <thread>
 #include <vector>
@@ -77,7 +78,7 @@ int main() {
     sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(8080); // WAF 8080 portunda çalışır
+    address.sin_port = htons(getenv("PORT") ? atoi(getenv("PORT")) : 8080); // WAF 8080 portunda çalışır
 
     if (::bind(serverSocket, (struct sockaddr*)&address, sizeof(address)) < 0) {
         cerr << "Bind failed!" << endl;
@@ -90,7 +91,7 @@ int main() {
     }
 
     cout << "=========================================" << endl;
-    cout << " IAL WAF Core (C++) Started on Port 8080 " << endl;
+    cout << " IAL WAF Core (C++) Started on Port " << (getenv("PORT") ? getenv("PORT") : "8080") << " " << endl;
     cout << "=========================================" << endl;
 
     while (true) {
